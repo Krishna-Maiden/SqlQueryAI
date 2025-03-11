@@ -269,8 +269,8 @@ namespace SQLQueryAI.Core.Services
                             }
 
                             // Write place data
-                            writer.Write(item.PlaceData.PlaceId);
-                            writer.Write(item.PlaceData.CityId);
+                            writer.Write(item.PlaceData.PlaceId.ToString());
+                            writer.Write(item.PlaceData.CityId.ToString());
                             writer.Write(item.PlaceData.PlaceName);
                             writer.Write(item.PlaceData.CityName);
                             writer.Write(item.PlaceData.CurrentPopularity);
@@ -361,8 +361,8 @@ namespace SQLQueryAI.Core.Services
                             // Read place data
                             var placeData = new PlaceData
                             {
-                                PlaceId = reader.ReadInt32(),
-                                CityId = reader.ReadInt32(),
+                                PlaceId = Guid.Parse(reader.ReadString()),
+                                CityId = Guid.Parse(reader.ReadString()),
                                 PlaceName = reader.ReadString(),
                                 CityName = reader.ReadString(),
                                 CurrentPopularity = reader.ReadInt32(),

@@ -132,9 +132,9 @@ namespace SQLQueryAI.Core.Services
                                 result.Add(new PlaceData
                                 {
                                     CreatedDate = reader.GetDateTime(0),
-                                    CurrentPopularity = reader.GetInt32(1),
-                                    PlaceId = reader.GetInt32(2),
-                                    CityId = reader.GetInt32(3),
+                                    CurrentPopularity = Convert.ToInt32(reader.GetString(1)),
+                                    PlaceId = reader.GetGuid(2),
+                                    CityId = reader.GetGuid(3),
                                     PlaceName = reader.GetString(4),
                                     CityName = reader.GetString(5),
                                     Metadata = new Dictionary<string, object>()
