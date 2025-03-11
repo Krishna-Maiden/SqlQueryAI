@@ -1,0 +1,389 @@
+{
+	"info": {
+		"_postman_id": "e9f3c251-4d9a-42a7-8b51-fe5d9b3a5eb1",
+		"name": "SQL Natural Language Query API",
+		"description": "API for querying SQL data using natural language",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Administration",
+			"item": [
+				{
+					"name": "Get System Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/system-status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"system-status"
+							]
+						},
+						"description": "Get the current status of the system components"
+					},
+					"response": []
+				},
+				{
+					"name": "Rebuild Index",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/query/rebuild-index",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query",
+								"rebuild-index"
+							]
+						},
+						"description": "Rebuild the vector database index from the SQL data"
+					},
+					"response": []
+				},
+				{
+					"name": "Retrain Model",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/retrain-model",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"retrain-model"
+							]
+						},
+						"description": "Retrain the ML model with current data"
+					},
+					"response": []
+				}
+			],
+			"description": "Administrative endpoints for system management"
+		},
+		{
+			"name": "Queries",
+			"item": [
+				{
+					"name": "Most Popular Places in New York",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"What are the most popular places in New York?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to get the most popular places in New York City"
+					},
+					"response": []
+				},
+				{
+					"name": "Popularity Trend for Times Square",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"What is the popularity trend for Times Square over the past week?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to get the popularity trend for Times Square over time"
+					},
+					"response": []
+				},
+				{
+					"name": "Top 5 Most Popular Places Overall",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"What are the top 5 most popular places overall?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to get the top 5 most popular places across all cities"
+					},
+					"response": []
+				},
+				{
+					"name": "Compare Popularity Between Places",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Compare the popularity between Central Park and Times Square\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to compare popularity between two specific places"
+					},
+					"response": []
+				},
+				{
+					"name": "Top Attractions in Berlin",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Show me the top attractions in Berlin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to get the top attractions in Berlin"
+					},
+					"response": []
+				},
+				{
+					"name": "Most Popular City",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Which city has the highest average place popularity?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to find which city has the highest average place popularity"
+					},
+					"response": []
+				},
+				{
+					"name": "Popularity Over 80",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"List places with popularity rating over 80\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to find places with popularity rating over 80"
+					},
+					"response": []
+				},
+				{
+					"name": "Popular Places in Europe",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"What are the most popular tourist attractions in European cities?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to find popular tourist attractions in European cities"
+					},
+					"response": []
+				},
+				{
+					"name": "Highest Popularity Last Week",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Which place had the highest popularity rating last week?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to find which place had the highest popularity rating last week"
+					},
+					"response": []
+				},
+				{
+					"name": "Weekday vs Weekend Popularity",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Compare weekday vs weekend popularity for Central Park\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/query",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"query"
+							]
+						},
+						"description": "Query to compare weekday vs weekend popularity for a specific place"
+					},
+					"response": []
+				}
+			],
+			"description": "Natural language query endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		}
+	]
+}

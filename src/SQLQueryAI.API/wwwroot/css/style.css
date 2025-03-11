@@ -1,0 +1,51 @@
+﻿.query-container {
+    max-width: 900px;
+    margin: 50px auto;
+}
+
+.result-container {
+    margin-top: 30px;
+    min-height: 200px;
+}
+
+.source-context {
+    font-size: 0.85rem;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.json-display {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.example-query {
+    cursor: pointer;
+    padding: 5px 10px;
+    margin: 5px;
+    background-color: #f0f0f0;
+    border-radius: 15px;
+    display: inline-block;
+    transition: background-color 0.2s;
+}
+
+    .example-query:hover {
+        background-color: #e0e0e0;
+    }
+
+.loading {
+    display: none;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}

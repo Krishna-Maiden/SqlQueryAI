@@ -1,0 +1,116 @@
+-- Create database if it doesn't exist
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'ExportData')
+BEGIN
+    CREATE DATABASE ExportData;
+END
+GO
+
+USE ExportData;
+GO
+
+-- Create tables based on the provided query schema
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Place')
+BEGIN
+    CREATE TABLE [10057] (
+        PlaceId INT PRIMARY KEY IDENTITY(1,1),
+        CityId INT NOT NULL,
+        PlaceName NVARCHAR(100) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'City')
+BEGIN
+    CREATE TABLE [10051] (
+        CityId INT PRIMARY KEY IDENTITY(1,1),
+        CityName NVARCHAR(100) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'PlacePopularity')
+BEGIN
+    CREATE TABLE [10654] (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        PlaceId INT NOT NULL,
+        CreatedDate DATETIME NOT NULL,
+        CurrentPopularity INT NOT NULL,
+        FOREIGN KEY (PlaceId) REFERENCES [10057](PlaceId)
+    );
+END
+GO
+
+-- Insert sample data if tables are empty
+IF NOT EXISTS (SELECT TOP 1 * FROM [10051])
+BEGIN
+    -- Cities
+    INSERT INTO [10051] (CityName)
+    VALUES 
+        ('New York'),
+        ('Los Angeles'),
+        ('Chicago'),
+        ('Toronto'),
+        ('Vancouver'),
+        ('London'),
+        ('Paris'),
+        ('Tokyo'),
+        ('Sydney'),
+        ('Berlin');
+END
+GO
+
+IF NOT EXISTS (SELECT TOP 1 * FROM [10057])
+BEGIN
+    -- Places
+    INSERT INTO [10057] (CityId, PlaceName)
+    VALUES 
+        (1, 'Central Park'),
+        (1, 'Times Square'),
+        (1, 'Empire State Building'),
+        (2, 'Hollywood Boulevard'),
+        (2, 'Venice Beach'),
+        (3, 'Millennium Park'),
+        (4, 'CN Tower'),
+        (5, 'Stanley Park'),
+        (6, 'Big Ben'),
+        (7, 'Eiffel Tower'),
+        (8, 'Tokyo Tower'),
+        (9, 'Sydney Opera House'),
+        (10, 'Brandenburg Gate');
+END
+GO
+
+IF NOT EXISTS (SELECT TOP 1 * FROM [10654])
+BEGIN
+    -- Place Popularity data (last 30 days with varying popularity)
+    DECLARE @StartDate DATETIME = DATEADD(day, -30, GETDATE())
+    DECLARE @EndDate DATETIME = GETDATE()
+    DECLARE @PlaceId INT
+    DECLARE @CurrentDate DATETIME
+    
+    -- For each place
+    DECLARE place_cursor CURSOR FOR SELECT PlaceId FROM [10057]
+    OPEN place_cursor
+    FETCH NEXT FROM place_cursor INTO @PlaceId
+    
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Create entries for multiple days
+        SET @CurrentDate = @StartDate
+        WHILE @CurrentDate <= @EndDate
+        BEGIN
+            -- Random popularity between 1-100
+            INSERT INTO [10654] (PlaceId, CreatedDate, CurrentPopularity)
+            VALUES (@PlaceId, @CurrentDate, CAST(RAND() * 100 AS INT) + 1)
+            
+            -- Move to next day
+            SET @CurrentDate = DATEADD(day, 1, @CurrentDate)
+        END
+        
+        FETCH NEXT FROM place_cursor INTO @PlaceId
+    END
+    
+    CLOSE place_cursor
+    DEALLOCATE place_cursor
+END
+GO

@@ -1,0 +1,296 @@
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.ML;
+using SQLQueryAI.Core.Interfaces;
+using SQLQueryAI.Core.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.ML.Transforms.Text;
+
+namespace SQLQueryAI.Core.Services
+{
+    /// <summary>
+    /// Service for managing vector database operations
+    /// </summary>
+    public class VectorDatabaseService : IVectorDatabaseService
+    {
+        private readonly ILogger<VectorDatabaseService> _logger;
+        private MLContext _mlContext;
+        private PredictionEngine<TextData, TextEmbedding>? _predictionEngine;
+        private List<EmbeddingData> _embeddingDataset;
+
+        public VectorDatabaseService(ILogger<VectorDatabaseService> logger)
+        {
+            _logger = logger;
+            _mlContext = new MLContext(seed: 1);
+            _embeddingDataset = new List<EmbeddingData>();
+        }
+
+        /// <inheritdoc />
+        public async Task BuildIndex(List<string> descriptions, List<CompanyData> data)
+        {
+            if (descriptions.Count != data.Count)
+            {
+                throw new ArgumentException("Descriptions and data must have the same length");
+            }
+
+            try
+            {
+                // Create and train the model for text embedding
+                var pipeline = _mlContext.Transforms.Text.NormalizeText("NormalizedText", "Text")
+                    .Append(_mlContext.Transforms.Text.TokenizeIntoWords("Tokens", "NormalizedText"))
+                    .Append(_mlContext.Transforms.Text.RemoveDefaultStopWords("Tokens"))
+                    .Append(_mlContext.Transforms.Text.ApplyWordEmbedding("Features", "Tokens", WordEmbeddingEstimator.PretrainedModelKind.GloVe100D));
+
+                // Convert descriptions to IDataView
+                var textData = descriptions.Select((text, index) => new TextData { Text = text, Id = index }).ToList();
+                var dataView = _mlContext.Data.LoadFromEnumerable(textData);
+
+                // Train the model
+                var model = pipeline.Fit(dataView);
+
+                // Create prediction engine
+                _predictionEngine = _mlContext.Model.CreatePredictionEngine<TextData, TextEmbedding>(model);
+
+                // Create embeddings for all descriptions
+                _embeddingDataset.Clear();
+
+                for (int i = 0; i < descriptions.Count; i++)
+                {
+                    var prediction = _predictionEngine.Predict(new TextData { Text = descriptions[i], Id = i });
+                    _embeddingDataset.Add(new EmbeddingData
+                    {
+                        Id = i,
+                        Description = descriptions[i],
+                        Embedding = prediction.Features,
+                        CompanyData = data[i]
+                    });
+                }
+
+                _logger.LogInformation("Vector database built with {Count} entries", _embeddingDataset.Count);
+
+                // Execute the task asynchronously to avoid blocking
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building vector index");
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public async Task<(List<string> Contexts, List<CompanyData> Companies)> Search(string query, int k = 50)
+        {
+            if (_predictionEngine == null)
+            {
+                _logger.LogWarning("Search attempted but prediction engine is not initialized");
+                return (new List<string>(), new List<CompanyData>());
+            }
+
+            try
+            {
+                // Predict embedding for query
+                var queryEmbedding = _predictionEngine.Predict(new TextData { Text = query });
+
+                // Calculate cosine similarity with all embeddings
+                var results = _embeddingDataset
+                    .Select(item => new
+                    {
+                        Item = item,
+                        Similarity = CosineSimilarity(queryEmbedding.Features, item.Embedding)
+                    })
+                    .OrderByDescending(r => r.Similarity)
+                    .Take(k)
+                    .ToList();
+
+                // Return contexts and company data
+                var contexts = results.Select(r => r.Item.Description).ToList();
+                var companies = results.Select(r => r.Item.CompanyData).ToList();
+
+                // Execute the task asynchronously to avoid blocking
+                await Task.CompletedTask;
+
+                return (contexts, companies);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching vector database");
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public void SaveIndex(string path)
+        {
+            try
+            {
+                // Create directory if it doesn't exist
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? "");
+
+                // Serialize _embeddingDataset to disk
+                using (var stream = new FileStream(path, FileMode.Create))
+                using (var writer = new BinaryWriter(stream))
+                {
+                    // Write number of entries
+                    writer.Write(_embeddingDataset.Count);
+
+                    foreach (var item in _embeddingDataset)
+                    {
+                        // Write ID
+                        writer.Write(item.Id);
+
+                        // Write description
+                        writer.Write(item.Description);
+
+                        // Write embedding vector
+                        writer.Write(item.Embedding.Length);
+                        foreach (var value in item.Embedding)
+                        {
+                            writer.Write(value);
+                        }
+
+                        // Write company data
+                        writer.Write(item.CompanyData.Id);
+                        writer.Write(item.CompanyData.Name);
+                        writer.Write(item.CompanyData.Country);
+                        writer.Write(item.CompanyData.Region);
+                        writer.Write(item.CompanyData.Revenue);
+                        writer.Write(item.CompanyData.ExportVolume);
+                    }
+                }
+
+                _logger.LogInformation("Vector index saved to {Path}", path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving vector index");
+                throw;
+            }
+        }
+
+        /// <inheritdoc />
+        public bool LoadIndex(string path)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    _logger.LogWarning("Cannot load index, file does not exist: {Path}", path);
+                    return false;
+                }
+
+                // Load serialized _embeddingDataset from disk
+                _embeddingDataset.Clear();
+
+                using (var stream = new FileStream(path, FileMode.Open))
+                using (var reader = new BinaryReader(stream))
+                {
+                    // Read number of entries
+                    int count = reader.ReadInt32();
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        // Read ID
+                        int id = reader.ReadInt32();
+
+                        // Read description
+                        string description = reader.ReadString();
+
+                        // Read embedding vector
+                        int vectorLength = reader.ReadInt32();
+                        float[] embedding = new float[vectorLength];
+                        for (int j = 0; j < vectorLength; j++)
+                        {
+                            embedding[j] = reader.ReadSingle();
+                        }
+
+                        // Read company data
+                        var companyData = new CompanyData
+                        {
+                            Id = reader.ReadInt32(),
+                            Name = reader.ReadString(),
+                            Country = reader.ReadString(),
+                            Region = reader.ReadString(),
+                            Revenue = reader.ReadDecimal(),
+                            ExportVolume = reader.ReadDecimal(),
+                            Metadata = new Dictionary<string, object>()
+                        };
+
+                        _embeddingDataset.Add(new EmbeddingData
+                        {
+                            Id = id,
+                            Description = description,
+                            Embedding = embedding,
+                            CompanyData = companyData
+                        });
+                    }
+                }
+
+                // Recreate prediction engine
+                // This assumes you're using the same ML model each time
+                var pipeline = _mlContext.Transforms.Text.NormalizeText("NormalizedText", "Text")
+                    .Append(_mlContext.Transforms.Text.TokenizeIntoWords("Tokens", "NormalizedText"))
+                    .Append(_mlContext.Transforms.Text.RemoveDefaultStopWords("Tokens"))
+                    .Append(_mlContext.Transforms.Text.ApplyWordEmbedding("Features", "Tokens", WordEmbeddingEstimator.PretrainedModelKind.GloVe100D));
+
+                // Create a sample dataview to fit the pipeline
+                var sampleText = new List<TextData> { new TextData { Text = "Sample text", Id = 0 } };
+                var dataView = _mlContext.Data.LoadFromEnumerable(sampleText);
+                var model = pipeline.Fit(dataView);
+
+                // Create prediction engine
+                _predictionEngine = _mlContext.Model.CreatePredictionEngine<TextData, TextEmbedding>(model);
+
+                _logger.LogInformation("Vector index loaded from {Path} with {Count} entries", path, _embeddingDataset.Count);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading vector index");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Calculates cosine similarity between two vectors
+        /// </summary>
+        private float CosineSimilarity(float[] vectorA, float[] vectorB)
+        {
+            float dotProduct = 0;
+            float normA = 0;
+            float normB = 0;
+
+            for (int i = 0; i < vectorA.Length; i++)
+            {
+                dotProduct += vectorA[i] * vectorB[i];
+                normA += vectorA[i] * vectorA[i];
+                normB += vectorB[i] * vectorB[i];
+            }
+
+            return dotProduct / ((float)Math.Sqrt(normA) * (float)Math.Sqrt(normB));
+        }
+
+        // Data classes for ML.NET
+        private class TextData
+        {
+            public string Text { get; set; } = string.Empty;
+            public int Id { get; set; }
+        }
+
+        private class TextEmbedding
+        {
+            public float[] Features { get; set; } = Array.Empty<float>();
+        }
+
+        private class EmbeddingData
+        {
+            public int Id { get; set; }
+            public string Description { get; set; } = string.Empty;
+            public float[] Embedding { get; set; } = Array.Empty<float>();
+            public CompanyData CompanyData { get; set; } = new CompanyData();
+        }
+    }
+}

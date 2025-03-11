@@ -1,0 +1,40 @@
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build-env
+WORKDIR /app
+
+# Copy csproj and restore dependencies
+COPY src/SQLQueryAI.Core/*.csproj ./src/SQLQueryAI.Core/
+COPY src/SQLQueryAI.API/*.csproj ./src/SQLQueryAI.API/
+COPY *.sln .
+RUN dotnet restore
+
+# Copy everything else and build
+COPY . ./
+RUN dotnet publish -c Release -o out
+
+# Build runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:7.0
+WORKDIR /app
+COPY --from=build-env /app/out .
+
+# Copy Python script
+COPY scripts/fine_tune_model.py /app/Scripts/
+
+# Install Python and dependencies for model training/inference
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install required Python packages
+RUN pip3 install transformers datasets torch onnx onnxruntime
+
+# Create directories for data and models
+RUN mkdir -p /app/Data /app/Models
+
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:80
+
+# Expose port
+EXPOSE 80
+
+ENTRYPOINT ["dotnet", "SQLQueryAI.API.dll"]
