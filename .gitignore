@@ -1,0 +1,48 @@
+# .NET build output
+bin/
+obj/
+out/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+.vscode/
+*.vsix
+
+# ML.NET model files
+*.onnx
+vector_index.bin
+*.bin
+
+# ML training data
+training_data.json
+results/
+logs/
+
+# Python virtual environment
+venv/
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local development settings
+appsettings.Development.json
+appsettings.local.json
+
+# Docker volumes
+data/
+models/
+
+# Temporary files
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Test results
+TestResults/
+[Cc]overage*/
