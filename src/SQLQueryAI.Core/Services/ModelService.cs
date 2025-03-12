@@ -113,8 +113,7 @@ namespace SQLQueryAI.Core.Services
                 // Prepare prompt for inference
                 string prompt = CreatePrompt(query, context);
 
-                // For smaller deployments, we can use a simpler approach without ONNX
-                // This simulates what the ML model would do
+                // Fallback if model file doesn't exist
                 if (!File.Exists(_modelPath))
                 {
                     return FallbackQueryProcessing(query, context);
@@ -124,7 +123,6 @@ namespace SQLQueryAI.Core.Services
                 using (var session = new InferenceSession(_modelPath))
                 {
                     // Create input tensors
-                    // Note: Actual tokenization would depend on the model being used
                     var inputData = Tokenize(prompt);
                     var inputTensor = new DenseTensor<long>(new[] { 1, inputData.Length });
 
@@ -168,96 +166,96 @@ namespace SQLQueryAI.Core.Services
         }
 
         /// <summary>
-        /// Creates training examples from database data
+        /// Creates training examples from place and city data
         /// </summary>
         private List<TrainingExample> CreateTrainingExamples(DataTable data)
         {
             var examples = new List<TrainingExample>();
 
-            // Get unique regions
-            var regions = new HashSet<string>();
-            foreach (DataRow row in data.Rows)
+            // Group by cities and create training examples
+            var cityGroups = data.AsEnumerable()
+                .GroupBy(row => row.Field<string>("CityName"))
+                .Take(20);
+
+            foreach (var cityGroup in cityGroups)
             {
-                if (row["region"] != DBNull.Value)
-                    regions.Add(row["region"].ToString() ?? string.Empty);
-            }
+                var city = cityGroup.Key;
+                var topPlaces = cityGroup
+                    .OrderByDescending(row => Convert.ToInt32(row["CurrentPopularity"]))
+                    .Take(5)
+                    .Select(row => new
+                    {
+                        PlaceName = row.Field<string>("PlaceName"),
+                        Popularity = Convert.ToInt32(row["CurrentPopularity"]),
+                        Date = row.Field<DateTime>("CreatedDate")
+                    })
+                    .ToList();
 
-            // Create example for top export companies by region
-            foreach (string region in regions)
-            {
-                var filteredRows = data.AsEnumerable()
-                    .Where(r => r.Field<string>("region") == region)
-                    .OrderByDescending(r => Convert.ToDecimal(r["export_volume"]))
-                    .Take(10);
-
-                if (!filteredRows.Any())
-                    continue;
-
-                var topCompanies = filteredRows.Select(r => new {
-                    name = r.Field<string>("name"),
-                    country = r.Field<string>("country"),
-                    export_volume = Convert.ToDecimal(r["export_volume"])
-                }).ToList();
+                // Example queries about city places
+                examples.Add(new TrainingExample
+                {
+                    Question = $"What are the most popular places in {city}?",
+                    Answer = JsonConvert.SerializeObject(new
+                    {
+                        City = city,
+                        TopPlaces = topPlaces,
+                        TotalPlaces = topPlaces.Count
+                    })
+                });
 
                 examples.Add(new TrainingExample
                 {
-                    Question = $"What are the top 10 export companies in {region}?",
-                    Answer = JsonConvert.SerializeObject(topCompanies)
+                    Question = $"Compare popularity of attractions in {city}",
+                    Answer = JsonConvert.SerializeObject(new
+                    {
+                        City = city,
+                        PlaceComparison = topPlaces
+                            .OrderByDescending(p => p.Popularity)
+                            .Select((p, rank) => new
+                            {
+                                Rank = rank + 1,
+                                PlaceName = p.PlaceName,
+                                Popularity = p.Popularity
+                            })
+                    })
                 });
+            }
 
-                // Variation
-                examples.Add(new TrainingExample
+            // Global top places example
+            var globalTopPlaces = data.AsEnumerable()
+                .OrderByDescending(row => Convert.ToInt32(row["CurrentPopularity"]))
+                .Take(10)
+                .Select(row => new
                 {
-                    Question = $"Show me the leading exporters from {region}",
-                    Answer = JsonConvert.SerializeObject(topCompanies)
-                });
-            }
+                    PlaceName = row.Field<string>("PlaceName"),
+                    CityName = row.Field<string>("CityName"),
+                    Popularity = Convert.ToInt32(row["CurrentPopularity"]),
+                    Date = row.Field<DateTime>("CreatedDate")
+                })
+                .ToList();
 
-            // Create example for top export companies by country
-            var countries = new HashSet<string>();
-            foreach (DataRow row in data.Rows)
+            examples.Add(new TrainingExample
             {
-                if (row["country"] != DBNull.Value)
-                    countries.Add(row["country"].ToString() ?? string.Empty);
-            }
-
-            foreach (string country in countries.Take(20)) // Limit to 20 countries for example size
-            {
-                var filteredRows = data.AsEnumerable()
-                    .Where(r => r.Field<string>("country") == country)
-                    .OrderByDescending(r => Convert.ToDecimal(r["export_volume"]))
-                    .Take(5);
-
-                if (!filteredRows.Any())
-                    continue;
-
-                var topCompanies = filteredRows.Select(r => new {
-                    name = r.Field<string>("name"),
-                    export_volume = Convert.ToDecimal(r["export_volume"]),
-                    revenue = Convert.ToDecimal(r["revenue"])
-                }).ToList();
-
-                examples.Add(new TrainingExample
+                Question = "What are the top 10 most popular places overall?",
+                Answer = JsonConvert.SerializeObject(new
                 {
-                    Question = $"Which companies from {country} have the highest export volumes?",
-                    Answer = JsonConvert.SerializeObject(topCompanies)
-                });
-            }
-
-            // Add more example types for product categories, etc.
+                    GlobalTopPlaces = globalTopPlaces,
+                    AnalysisDate = DateTime.UtcNow
+                })
+            });
 
             return examples;
         }
 
         /// <summary>
-        /// Creates a prompt for the model using the query and context
+        /// Creates a prompt for the model
         /// </summary>
         private string CreatePrompt(string query, List<string> context)
         {
             StringBuilder sb = new StringBuilder();
 
             // Prompt format depends on the model being used
-            sb.AppendLine("Based on the following company information:");
+            sb.AppendLine("Based on the following place information:");
 
             foreach (var ctx in context.Take(10)) // Limit context to 10 entries
             {
@@ -273,31 +271,6 @@ namespace SQLQueryAI.Core.Services
         }
 
         /// <summary>
-        /// Tokenizes text for model input (simplified implementation)
-        /// </summary>
-        private long[] Tokenize(string text)
-        {
-            // This is a simplified tokenization approach
-            // In a real implementation, you would use a proper tokenizer matching your model
-            var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                .SelectMany(t => t.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-                .Select((token, index) => (long)index)
-                .ToArray();
-
-            return tokens;
-        }
-
-        /// <summary>
-        /// Detokenizes model output (simplified implementation)
-        /// </summary>
-        private string Detokenize(Tensor<long> tensor)
-        {
-            // This is a simplified detokenization approach
-            // In a real implementation, you would use a proper detokenizer matching your model
-            return "{ \"companies\": [ { \"name\": \"Example Corp\", \"export_volume\": 1234.56 } ] }";
-        }
-
-        /// <summary>
         /// Provides a fallback response when the model is unavailable
         /// </summary>
         private string FallbackQueryProcessing(string query, List<string> context)
@@ -305,56 +278,90 @@ namespace SQLQueryAI.Core.Services
             _logger.LogWarning("Using fallback query processing as model is not available");
 
             // Simple keyword-based processing
-            bool isTopCompaniesQuery = query.Contains("top", StringComparison.OrdinalIgnoreCase) &&
-                (query.Contains("companies", StringComparison.OrdinalIgnoreCase) ||
-                 query.Contains("exporters", StringComparison.OrdinalIgnoreCase));
+            bool isTopPlacesQuery = query.Contains("top", StringComparison.OrdinalIgnoreCase) &&
+                (query.Contains("places", StringComparison.OrdinalIgnoreCase) ||
+                 query.Contains("attractions", StringComparison.OrdinalIgnoreCase));
 
-            string? region = null;
-            if (query.Contains("North America", StringComparison.OrdinalIgnoreCase)) region = "North America";
-            else if (query.Contains("Europe", StringComparison.OrdinalIgnoreCase)) region = "Europe";
-            else if (query.Contains("Asia", StringComparison.OrdinalIgnoreCase)) region = "Asia";
+            bool isCityQuery = query.Contains("city", StringComparison.OrdinalIgnoreCase);
 
-            // Extract region from context if not in query
-            if (region == null && context.Any())
+            // Extract city from context if not in query
+            string? city = null;
+            if (context.Any())
             {
                 foreach (var ctx in context)
                 {
-                    if (ctx.Contains("North America"))
+                    // Look for city names in context
+                    if (ctx.Contains("New York", StringComparison.OrdinalIgnoreCase))
                     {
-                        region = "North America";
+                        city = "New York";
                         break;
                     }
-                    else if (ctx.Contains("Europe"))
-                    {
-                        region = "Europe";
-                        break;
-                    }
-                    else if (ctx.Contains("Asia"))
-                    {
-                        region = "Asia";
-                        break;
-                    }
+                    // Add more cities as needed
                 }
             }
 
-            if (isTopCompaniesQuery && region != null)
+            if (isTopPlacesQuery)
             {
-                // Return formatted JSON with example companies
-                return $@"{{
-                    ""companies"": [
-                        {{ ""name"": ""GlobalTrade Inc."", ""country"": ""USA"", ""export_volume"": 1245.67, ""region"": ""{region}"" }},
-                        {{ ""name"": ""ExportMasters Ltd."", ""country"": ""Canada"", ""export_volume"": 987.54, ""region"": ""{region}"" }},
-                        {{ ""name"": ""WorldExchange Group"", ""country"": ""USA"", ""export_volume"": 876.32, ""region"": ""{region}"" }}
-                    ],
-                    ""query"": ""{query}""
-                }}";
+                // Return formatted JSON with example places
+                return JsonConvert.SerializeObject(new
+                {
+                    places = new[]
+                    {
+                        new {
+                            placeName = "Central Park",
+                            cityName = city ?? "New York",
+                            popularity = 92,
+                            date = DateTime.Now
+                        },
+                        new {
+                            placeName = "Times Square",
+                            cityName = city ?? "New York",
+                            popularity = 88,
+                            date = DateTime.Now
+                        }
+                    },
+                    query = query
+                });
             }
 
             // Default response
-            return $@"{{
-                ""response"": ""Unable to process query"",
-                ""query"": ""{query}""
-            }}";
+            return JsonConvert.SerializeObject(new
+            {
+                response = "Unable to process query",
+                query = query
+            });
         }
+
+        // Tokenization and Detokenization methods
+        private long[] Tokenize(string text)
+        {
+            return text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .SelectMany(t => t.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                .Select((token, index) => (long)index)
+                .ToArray();
+        }
+
+        private string Detokenize(Tensor<long> tensor)
+        {
+            // Simplified detokenization
+            return JsonConvert.SerializeObject(new
+            {
+                places = new[]
+                {
+                    new {
+                        placeName = "Sample Place",
+                        cityName = "Sample City",
+                        popularity = 75
+                    }
+                }
+            });
+        }
+    }
+
+    // Existing class for training examples
+    public class TrainingExample
+    {
+        public string Question { get; set; } = string.Empty;
+        public string Answer { get; set; } = string.Empty;
     }
 }

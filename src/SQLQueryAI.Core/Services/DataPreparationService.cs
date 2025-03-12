@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ namespace SQLQueryAI.Core.Services
         private readonly ILogger<DataPreparationService> _logger;
         private readonly string _connectionString;
         private readonly IVectorDatabaseService _vectorDbService;
+        private readonly IConfiguration _configuration;
         private bool _databaseInitialized = false;
 
         public DataPreparationService(
@@ -27,17 +29,44 @@ namespace SQLQueryAI.Core.Services
             IVectorDatabaseService vectorDbService)
         {
             _logger = logger;
+            _configuration = configuration;
             _connectionString = configuration.GetConnectionString("SQLServerDatabase")
                 ?? throw new ArgumentException("SQLServerDatabase connection string is not configured");
             _vectorDbService = vectorDbService;
 
             // Try to load existing vector index if available
-            var indexPath = configuration["VectorDatabase:IndexPath"] ?? "vector_index.bin";
-            if (System.IO.File.Exists(indexPath))
+            var indexPath = GetSafeIndexPath();
+            if (File.Exists(indexPath))
             {
                 _databaseInitialized = _vectorDbService.LoadIndex(indexPath);
                 _logger.LogInformation("Vector database loaded: {Status}", _databaseInitialized ? "Success" : "Failed");
             }
+        }
+
+        /// <summary>
+        /// Gets a safe path for vector index storage
+        /// </summary>
+        private string GetSafeIndexPath()
+        {
+            // Try configuration path first
+            var configPath = _configuration["VectorDatabase:IndexPath"];
+            if (!string.IsNullOrWhiteSpace(configPath))
+            {
+                return configPath;
+            }
+
+            // Default path with guaranteed creation
+            var defaultPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SQLQueryAI",
+                "VectorIndex",
+                "vector_index.bin"
+            );
+
+            // Ensure directory exists
+            Directory.CreateDirectory(Path.GetDirectoryName(defaultPath));
+
+            return defaultPath;
         }
 
         /// <inheritdoc />
@@ -88,17 +117,6 @@ namespace SQLQueryAI.Core.Services
         }
 
         /// <inheritdoc />
-        public async Task<List<CompanyData>> GetCompanyDataAsync(int limit = 1000)
-        {
-            // This method is now replaced by GetPlaceDataAsync
-            throw new NotImplementedException("This method is replaced by GetPlaceDataAsync");
-        }
-
-        /// <summary>
-        /// Gets place data from the database for building the vector database
-        /// </summary>
-        /// <param name="limit">Maximum number of places to retrieve</param>
-        /// <returns>List of place data objects</returns>
         public async Task<List<PlaceData>> GetPlaceDataAsync(int limit = 1000)
         {
             var result = new List<PlaceData>();
@@ -161,14 +179,28 @@ namespace SQLQueryAI.Core.Services
                 // Get a sample of data to build vector database
                 var data = await GetPlaceDataAsync(limit: 100000);
 
+                // Validate data
+                if (data == null || !data.Any())
+                {
+                    _logger.LogWarning("No data available for vector database rebuilding");
+                    return false;
+                }
+
                 // Convert to text descriptions for embedding
-                var descriptions = data.Select(p => p.ToDescription()).ToList();
+                var descriptions = data.Select(p =>
+                    $"Place: {p.PlaceName} in {p.CityName} with popularity {p.CurrentPopularity} on {p.CreatedDate:yyyy-MM-dd}"
+                ).ToList();
 
                 // Build vector database
                 await _vectorDbService.BuildIndexForPlaces(descriptions, data);
 
-                // Save the index to disk
-                var indexPath = "vector_index.bin";
+                // Get safe index path
+                var indexPath = GetSafeIndexPath();
+
+                // Ensure directory exists before saving
+                Directory.CreateDirectory(Path.GetDirectoryName(indexPath));
+
+                // Save the index
                 _vectorDbService.SaveIndex(indexPath);
 
                 _databaseInitialized = true;

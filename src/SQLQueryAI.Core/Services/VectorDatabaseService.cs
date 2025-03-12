@@ -238,8 +238,20 @@ namespace SQLQueryAI.Core.Services
         {
             try
             {
-                // Create directory if it doesn't exist
-                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? "");
+                // Validate the path
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    // Use a default path if no path is provided
+                    path = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "SQLQueryAI",
+                        "VectorIndex",
+                        "vector_index.bin"
+                    );
+                }
+
+                // Ensure directory exists
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
 
                 // Serialize _embeddingDataset to disk
                 using (var stream = new FileStream(path, FileMode.Create))

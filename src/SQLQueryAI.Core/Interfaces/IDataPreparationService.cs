@@ -21,7 +21,7 @@ namespace SQLQueryAI.Core.Interfaces
         /// </summary>
         /// <param name="limit">Maximum number of companies to retrieve</param>
         /// <returns>List of company data objects</returns>
-        Task<List<CompanyData>> GetCompanyDataAsync(int limit = 1000);
+        Task<List<PlaceData>> GetPlaceDataAsync(int limit = 1000);
 
         /// <summary>
         /// Rebuilds the vector database from SQL data

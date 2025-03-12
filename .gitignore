@@ -46,3 +46,7 @@ Thumbs.db
 # Test results
 TestResults/
 [Cc]overage*/
+src/SQLQueryAI.API/scripts/\#
+src/SQLQueryAI.API/scripts/For/Lib/
+src/SQLQueryAI.API/scripts/myenv/
+src/SQLQueryAI.API/scripts/myenvsource/
